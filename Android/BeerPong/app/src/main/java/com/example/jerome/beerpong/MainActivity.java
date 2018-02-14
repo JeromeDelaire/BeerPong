@@ -1,5 +1,6 @@
 package com.example.jerome.beerpong;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
@@ -8,12 +9,17 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.telephony.TelephonyManager;
+import android.util.Log;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import com.example.jerome.beerpong.ColorPicker.ColorPickerDialog;
 
@@ -27,33 +33,13 @@ import java.util.UUID;
 public class MainActivity extends AppCompatActivity {
 
     private Button color ;
-    private final static int REQUEST_CODE_ENABLE_BLUETOOTH = 0;
-    private Set<BluetoothDevice> pairedDevices, discoveredDevices ;
-    BluetoothAdapter bluetoothAdapter ;
-    ListView pairedDevicesList, discoveredDevicesList ;
-
-    private final BroadcastReceiver bluetoothReceiver = new BroadcastReceiver() {
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-                discoveredDevices.add((BluetoothDevice) intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE));
-                List<String> s = new ArrayList<String>();
-                for(BluetoothDevice bt : discoveredDevices)
-                    s.add(bt.getName());
-
-                discoveredDevicesList.setAdapter(new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_list_item_1, s));
-            }
-        }
-    };
+    TcpClient tcpClient ;
+    int count = 0 ;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        pairedDevicesList = (ListView) findViewById(R.id.paired_devices);
-        discoveredDevicesList = (ListView) findViewById(R.id.discovered_devices);
-        discoveredDevices = new HashSet<BluetoothDevice>();
 
         color = (Button) findViewById(R.id.color);
         color.setOnClickListener(new View.OnClickListener() {
@@ -63,7 +49,19 @@ public class MainActivity extends AppCompatActivity {
                 ColorPickerDialog colorPickerDialog = new ColorPickerDialog(view.getContext(), initialColor, new ColorPickerDialog.OnColorSelectedListener() {
 
                     @Override
-                    public void onColorSelected(int color) {
+                    public void onColorSelected(final int color) {
+                        count++;
+                        if (count == 10) {
+                            count = 0;
+                            new Thread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (tcpClient != null) {
+                                        tcpClient.sendMessage(String.valueOf(color));
+                                    }
+                                }
+                            }).start();
+                        }
                     }
 
                 });
@@ -71,89 +69,46 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        if (bluetoothAdapter != null){
-            if (!bluetoothAdapter.isEnabled()) {
-                Intent enableBlueTooth = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                startActivityForResult(enableBlueTooth, REQUEST_CODE_ENABLE_BLUETOOTH);
-            }
-            else{
-                bluetooth();
-            }
-        }
-    }
 
-    private void bluetooth(){
 
-        pairedDevices = bluetoothAdapter.getBondedDevices();
-        IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-        registerReceiver(bluetoothReceiver, filter);
-        bluetoothAdapter.startDiscovery();
-
-        List<String> s = new ArrayList<String>();
-        for(BluetoothDevice bt : pairedDevices)
-            s.add(bt.getName());
-
-        pairedDevicesList.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, s));
-
+        new ConnectTask().execute("");
 
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQUEST_CODE_ENABLE_BLUETOOTH)
-            return;
-        if (resultCode == RESULT_OK) {
-            // L'utilisation a activé le bluetooth
-            bluetooth();
-        } else {
-            // L'utilisation n'a pas activé le bluetooth
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         super.onDestroy();
-        bluetoothAdapter.cancelDiscovery();
-        unregisterReceiver(bluetoothReceiver);
+        if(tcpClient!=null)tcpClient.stopClient();
     }
 
-    private class ConnectThread extends Thread {
-        private final BluetoothSocket mmSocket;
-        private final BluetoothDevice mmDevice;
+    public class ConnectTask extends AsyncTask<String, String, TcpClient> {
 
-        public ConnectThread(BluetoothDevice device) {
-            BluetoothSocket tmp = null;
-            mmDevice = device;
-            try {
-                tmp = device.createRfcommSocketToServiceRecord(new UUID(25, 140));
-            } catch (IOException e) { }
-            mmSocket = tmp;
+        @Override
+        protected TcpClient doInBackground(String... message) {
+
+            //we create a TCPClient object
+            tcpClient = new TcpClient(new TcpClient.OnMessageReceived() {
+                @Override
+                //here the messageReceived method is implemented
+                public void messageReceived(String message) {
+                    //this method calls the onProgressUpdate
+                    publishProgress(message);
+                    Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
+                }
+            });
+            tcpClient.run();
+
+            return null;
         }
 
-        public void run() {
-            bluetoothAdapter.cancelDiscovery();
-            try {
-                mmSocket.connect();
-            } catch (IOException connectException) {
-                try {
-                    mmSocket.close();
-                } catch (IOException closeException) { }
-                return;
-            }
-            manageConnectedSocket(mmSocket);
+        @Override
+        protected void onProgressUpdate(String... values) {
+            super.onProgressUpdate(values);
+            //response received from server
+            Log.d("test", "response " + values[0]);
+            //process server response here....
+
         }
-
-        public void cancel() {
-            try {
-                mmSocket.close();
-            } catch (IOException e) { }
-        }
-
-    }
-
-    private void manageConnectedSocket(BluetoothSocket socket){
-
     }
 }
+

@@ -3,9 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/BeerPong.iml" filepath="$PROJECT_DIR$/BeerPong.iml" />
-      <module fileurl="file://F:\Documents\Projets\git\BeerPong\Android\BeerPong\BeerPong.iml" filepath="F:\Documents\Projets\git\BeerPong\Android\BeerPong\BeerPong.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
-      <module fileurl="file://F:\Documents\Projets\git\BeerPong\Android\BeerPong\app\app.iml" filepath="F:\Documents\Projets\git\BeerPong\Android\BeerPong\app\app.iml" />
     </modules>
   </component>
 </project>

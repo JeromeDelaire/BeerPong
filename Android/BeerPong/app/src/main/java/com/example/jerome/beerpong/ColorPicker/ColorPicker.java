@@ -66,6 +66,8 @@ public class ColorPicker extends View {
     private int innerWheelRadius;
     private int colorWheelRadius;
 
+    private OnColorChangedListener onColorChangedListener ;
+
     private Matrix gradientRotationMatrix;
 
     /** Currently selected color */
@@ -305,6 +307,8 @@ public class ColorPicker extends View {
                     invalidate();
                 }
 
+                if(onColorChangedListener!=null)onColorChangedListener.onColorChanged(colorHSV);
+
                 return true;
         }
         return super.onTouchEvent(event);
@@ -338,5 +342,13 @@ public class ColorPicker extends View {
     }
 
     public class ColorPickerDialog {
+    }
+
+    public interface OnColorChangedListener {
+        void onColorChanged(float[] color);
+    }
+
+    public void setOnColorChangedListener(OnColorChangedListener onColorChangedListener) {
+        this.onColorChangedListener = onColorChangedListener;
     }
 }
